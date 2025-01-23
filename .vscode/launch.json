@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "alcm (Emulator - Pixel_4_API_35)", // エミュレーター用設定
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "emulator-5554" // PixelエミュレーターのID
+        },
+        {
+            "name": "alcm (Real Device - A101OP)", // 実機用設定
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "252542c5" // 実機 A101OP のID
+        }
+    ]
+}
