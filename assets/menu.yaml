@@ -1,0 +1,71 @@
+tabs:
+  - title: "物件情報"
+    fields:
+      - label: "物件名称"
+        type: "text"
+        default: "◯◯マンション"
+
+      - label: "号室"
+        type: "phone"
+        default: "101"
+
+      - label: "間取り"
+        type: "text"
+        default: "2LDK"
+
+      - label: "契約(予定)額"
+        type: "number"
+        default: 1000000
+
+  - title: "契約者情報"
+    fields:
+      - label: "借入人名義"
+        type: "text"
+        default: ""
+
+      - label: "連帯人名義"
+        type: "text"
+        default: ""
+
+  - title: "金融情報"
+    fields:
+      - label: "金融機関名"
+        type: "select"
+        options:
+          - "三菱UFJ銀行"
+          - "三井住友銀行"
+          - "りそな銀行"
+        default: "りそな銀行"
+
+      - label: "ローン名称"
+        type: "select"
+        options:
+          - "固定"
+          - "変動"
+        default: "変動"
+
+      - label: "元金(万円)"
+        type: "number"
+        default: 1000
+
+      - label: "金利(%)"
+        type: "number"
+        default: 2.345
+
+  - title: "諸費用"
+    fields:
+      - label: "融資手数料"
+        type: "number"
+        default: ""
+
+      - label: "保証料"
+        type: "number"
+        default: ""
+
+      - label: "金消印紙代1"
+        type: "number"
+        default: ""
+
+      - label: "金消印紙代2"
+        type: "number"
+        default: ""

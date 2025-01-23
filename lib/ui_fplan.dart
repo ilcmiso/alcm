@@ -1,6 +1,9 @@
-// ui_fplan.dart
+// ignore_for_file: use_super_parameters, avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:yaml/yaml.dart';
 
 class PropertyInputForm extends StatefulWidget {
   const PropertyInputForm({Key? key}) : super(key: key);
@@ -11,138 +14,109 @@ class PropertyInputForm extends StatefulWidget {
 
 class _PropertyInputFormState extends State<PropertyInputForm>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _tabController; // nullable に変更
+  Map<String, dynamic>? formConfig; // null許容型
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    loadYamlConfig(); // YAMLの読み込みを開始
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    // TabControllerが存在していれば破棄
+    _tabController?.dispose();
     super.dispose();
+  }
+
+  Future<void> loadYamlConfig() async {
+    try {
+      final yamlString = await rootBundle.loadString('assets/menu.yaml');
+      final yamlMap = loadYaml(yamlString);
+      setState(() {
+        formConfig =
+            Map<String, dynamic>.from(json.decode(json.encode(yamlMap)));
+        // 既存のTabControllerを破棄してから新しく作成
+        _tabController?.dispose();
+        _tabController = TabController(
+          length: formConfig!['tabs'].length,
+          vsync: this,
+        );
+      });
+    } catch (e, stackTrace) {
+      print("Error loading YAML: $e");
+      print("Stack Trace: $stackTrace");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (formConfig == null) {
+      // ローディング中の画面
+      return Scaffold(
+        appBar: AppBar(title: const Text("Loading...")),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("資金計画入力"),
+        title: const Text("動的入力フォーム"),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: formConfig!['tabs']
+              .map<Widget>((tab) => Tab(text: tab['title']))
+              .toList(),
+        ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildPropertyTab(),
-          _buildContractorTab(),
-          _buildFinancialTab(),
-          _buildCostTab(),
-          _buildDataCreationTab(),
-        ],
-      ),
-      bottomNavigationBar: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabs: const [
-          Tab(text: "物件情報"),
-          Tab(text: "契約者情報"),
-          Tab(text: "金融機関"),
-          Tab(text: "諸費用"),
-          Tab(text: "データ作成"),
-        ],
+        children: formConfig!['tabs']
+            .map<Widget>((tab) => buildFormFields(tab['fields']))
+            .toList(),
       ),
     );
   }
 
-  Widget _buildPropertyTab() {
-    return Padding(
+  Widget buildFormFields(List<dynamic> fields) {
+    return ListView(
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTextField("物件名称"),
-          _buildTextField("号室"),
-          _buildTextField("間取り"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContractorTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTextField("契約者名"),
-          _buildTextField("連絡先"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFinancialTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTextField("金融機関名称"),
-          _buildNumberField("融資額"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCostTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildNumberField("諸費用合計"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataCreationTab() {
-    return Center(
-      child: ElevatedButton(
-        onPressed: () {
-          // データ作成処理を実装
-        },
-        child: const Text("データ作成"),
-      ),
-    );
-  }
-
-  Widget _buildTextField(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNumberField(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-        ],
-      ),
+      children: fields.map<Widget>((field) {
+        switch (field['type']) {
+          case 'text':
+            return TextField(
+              decoration: InputDecoration(
+                labelText: field['label'],
+                hintText: field['default'] ?? '',
+              ),
+            );
+          case 'number':
+            return TextField(
+              decoration: InputDecoration(
+                labelText: field['label'],
+                hintText: field['placeholder'] ?? '',
+              ),
+              keyboardType: TextInputType.number,
+            );
+          case 'select':
+            return DropdownButtonFormField<String>(
+              decoration: InputDecoration(labelText: field['label']),
+              value: field['default'],
+              items: (field['options'] as List<dynamic>)
+                  .map<DropdownMenuItem<String>>((option) {
+                return DropdownMenuItem(
+                  value: option,
+                  child: Text(option),
+                );
+              }).toList(),
+              onChanged: (value) {},
+            );
+          default:
+            return Container();
+        }
+      }).toList(),
     );
   }
 }
