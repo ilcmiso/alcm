@@ -6,7 +6,7 @@ tabs:
         default: "◯◯マンション"
 
       - label: "号室"
-        type: "phone"
+        type: "number"
         default: "101"
 
       - label: "間取り"
@@ -50,6 +50,10 @@ tabs:
 
       - label: "金利(%)"
         type: "number"
+        decimal_places: 3  # 小数点以下の桁数を指定
+        min: 0            # 最小値
+        max: 100          # 最大値
+        placeholder: "例: 2.345"
         default: 2.345
 
   - title: "諸費用"

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:yaml/yaml.dart';
+import 'common.dart';
 
 class PropertyInputForm extends StatefulWidget {
   const PropertyInputForm({Key? key}) : super(key: key);
@@ -45,8 +46,8 @@ class _PropertyInputFormState extends State<PropertyInputForm>
         );
       });
     } catch (e, stackTrace) {
-      print("Error loading YAML: $e");
-      print("Stack Trace: $stackTrace");
+      dprint("Error loading YAML: $e");
+      dprint("Stack Trace: $stackTrace");
     }
   }
 
@@ -76,6 +77,43 @@ class _PropertyInputFormState extends State<PropertyInputForm>
         tabs: formConfig!['tabs']
             .map<Widget>((tab) => Tab(text: tab['title']))
             .toList(),
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min, // ボタンを下部にまとめる
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              dprint("データ保存ボタンが押されました");
+              // データ保存処理をここに記述
+              cmnSnackBar(context, "保存が完了しました");
+            },
+            heroTag: "save", // ユニークなタグを設定
+            tooltip: "データ保存",
+            child: const Icon(Icons.save),
+          ),
+          const SizedBox(height: 10), // ボタン間のスペース
+          FloatingActionButton(
+            onPressed: () {
+              dprint("他の操作ボタンが押されました");
+              // 他の操作をここに記述
+              cmnSnackBar(context, "保存が完了しました");
+            },
+            heroTag: "other", // ユニークなタグを設定
+            tooltip: "他の操作",
+            child: const Icon(Icons.print),
+          ),
+          const SizedBox(height: 10), // ボタン間のスペース
+          FloatingActionButton(
+            onPressed: () {
+              dprint("他の操作ボタンが押されました");
+              // 他の操作をここに記述
+              cmnSnackBar(context, "保存が完了しました");
+            },
+            heroTag: "other", // ユニークなタグを設定
+            tooltip: "他の操作",
+            child: const Icon(Icons.cloud_upload),
+          ),
+        ],
       ),
     );
   }
