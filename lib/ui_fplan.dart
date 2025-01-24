@@ -62,19 +62,19 @@ class _PropertyInputFormState extends State<PropertyInputForm>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("動的入力フォーム"),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: formConfig!['tabs']
-              .map<Widget>((tab) => Tab(text: tab['title']))
-              .toList(),
-        ),
+        title: const Text("ALCM 資金計画 各種入力"),
       ),
       body: TabBarView(
         controller: _tabController,
         children: formConfig!['tabs']
             .map<Widget>((tab) => buildFormFields(tab['fields']))
+            .toList(),
+      ),
+      bottomNavigationBar: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabs: formConfig!['tabs']
+            .map<Widget>((tab) => Tab(text: tab['title']))
             .toList(),
       ),
     );
