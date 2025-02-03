@@ -1,10 +1,11 @@
 // ignore_for_file: use_super_parameters, avoid_print
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
 import 'package:yaml/yaml.dart';
-import 'common.dart';
+import 'package:alcm/common.dart';
+import 'package:alcm/sqlcmn.dart';
 
 class PropertyInputForm extends StatefulWidget {
   const PropertyInputForm({Key? key}) : super(key: key);
@@ -96,7 +97,7 @@ class _PropertyInputFormState extends State<PropertyInputForm>
             onPressed: () {
               dprint("他の操作ボタンが押されました");
               // 他の操作をここに記述
-              cmnSnackBar(context, "保存が完了しました");
+              cmnSnackBar(context, "保存が完了しました2");
             },
             heroTag: "other", // ユニークなタグを設定
             tooltip: "他の操作",
@@ -107,7 +108,7 @@ class _PropertyInputFormState extends State<PropertyInputForm>
             onPressed: () {
               dprint("他の操作ボタンが押されました");
               // 他の操作をここに記述
-              cmnSnackBar(context, "保存が完了しました");
+              cmnSnackBar(context, "保存が完了しました3");
             },
             heroTag: "other", // ユニークなタグを設定
             tooltip: "他の操作",
