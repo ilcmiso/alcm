@@ -19,6 +19,11 @@ class _PropertyInputFormState extends State<PropertyInputForm>
   TabController? _tabController; // nullable に変更
   Map<String, dynamic>? formConfig; // null許容型
 
+  // 追加: 各入力フィールドの値を管理するMap
+  final Map<String, String> _formData = {};
+  // 追加: 各入力フィールド用のTextEditingControllerを管理するMap
+  final Map<String, TextEditingController> _controllers = {};
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +34,10 @@ class _PropertyInputFormState extends State<PropertyInputForm>
   void dispose() {
     // TabControllerが存在していれば破棄
     _tabController?.dispose();
+    // 追加: 全てのコントローラーを破棄
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -69,7 +78,8 @@ class _PropertyInputFormState extends State<PropertyInputForm>
       body: TabBarView(
         controller: _tabController,
         children: formConfig!['tabs']
-            .map<Widget>((tab) => buildFormFields(tab['fields']))
+            .map<Widget>(
+                (tab) => buildFormFields(tab['fields'], tabKey: tab['title']))
             .toList(),
       ),
       bottomNavigationBar: TabBar(
@@ -83,9 +93,15 @@ class _PropertyInputFormState extends State<PropertyInputForm>
         mainAxisSize: MainAxisSize.min, // ボタンを下部にまとめる
         children: [
           FloatingActionButton(
-            onPressed: () {
+            onPressed: () async {
               dprint("データ保存ボタンが押されました");
               // データ保存処理をここに記述
+              final task = {
+                'title': '入力フォームデータ',
+                'description': json.encode(_formData),
+              };
+              final db = SQLiteCommon();
+              await db.insertTask(task);
               cmnSnackBar(context, "保存が完了しました");
             },
             heroTag: "save", // ユニークなタグを設定
@@ -119,39 +135,71 @@ class _PropertyInputFormState extends State<PropertyInputForm>
     );
   }
 
-  Widget buildFormFields(List<dynamic> fields) {
+  // 追加: tabKeyを引数に追加して、タブごとにキーが重複しないようにする
+  Widget buildFormFields(List<dynamic> fields, {required String tabKey}) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: fields.map<Widget>((field) {
         switch (field['type']) {
           case 'text':
-            return TextField(
-              decoration: InputDecoration(
-                labelText: field['label'],
-                hintText: field['default'] ?? '',
-              ),
-            );
+            {
+              final key = '${tabKey}_${field['label']}';
+              if (!_controllers.containsKey(key)) {
+                _controllers[key] =
+                    TextEditingController(text: field['default'] ?? '');
+                _formData[key] = field['default'] ?? '';
+              }
+              return TextField(
+                controller: _controllers[key],
+                decoration: InputDecoration(
+                  labelText: field['label'],
+                  hintText: field['default'] ?? '',
+                ),
+                onChanged: (value) {
+                  _formData[key] = value;
+                },
+              );
+            }
           case 'number':
-            return TextField(
-              decoration: InputDecoration(
-                labelText: field['label'],
-                hintText: field['placeholder'] ?? '',
-              ),
-              keyboardType: TextInputType.number,
-            );
+            {
+              final key = '${tabKey}_${field['label']}';
+              if (!_controllers.containsKey(key)) {
+                _controllers[key] =
+                    TextEditingController(text: field['placeholder'] ?? '');
+                _formData[key] = field['placeholder'] ?? '';
+              }
+              return TextField(
+                controller: _controllers[key],
+                decoration: InputDecoration(
+                  labelText: field['label'],
+                  hintText: field['placeholder'] ?? '',
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  _formData[key] = value;
+                },
+              );
+            }
           case 'select':
-            return DropdownButtonFormField<String>(
-              decoration: InputDecoration(labelText: field['label']),
-              value: field['default'],
-              items: (field['options'] as List<dynamic>)
-                  .map<DropdownMenuItem<String>>((option) {
-                return DropdownMenuItem(
-                  value: option,
-                  child: Text(option),
-                );
-              }).toList(),
-              onChanged: (value) {},
-            );
+            {
+              final key = '${tabKey}_${field['label']}';
+              _formData.putIfAbsent(key, () => field['default'] ?? '');
+              return DropdownButtonFormField<String>(
+                decoration: InputDecoration(labelText: field['label']),
+                value: field['default'],
+                items: (field['options'] as List<dynamic>)
+                    .map<DropdownMenuItem<String>>((option) {
+                  return DropdownMenuItem(
+                    value: option,
+                    child: Text(option),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  _formData[key] = value ?? '';
+                  setState(() {});
+                },
+              );
+            }
           default:
             return Container();
         }

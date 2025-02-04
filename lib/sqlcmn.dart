@@ -21,7 +21,7 @@ class SQLiteCommon {
   // データベースの初期化
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath(); // デフォルトのデータベースパスを取得
-    final path = join(dbPath, 'example.db'); // データベースファイル名
+    final path = join(dbPath, 'fplan.db'); // データベースファイル名
     return await openDatabase(
       path,
       version: 1,
