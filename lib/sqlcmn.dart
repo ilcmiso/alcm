@@ -24,52 +24,69 @@ class SQLiteCommon {
     final path = join(dbPath, 'fplan.db'); // データベースファイル名
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // バージョンを更新（必要に応じて変更）
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
   // 初回作成時のテーブル構造
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE tasks (
+      CREATE TABLE form_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        description TEXT
+        page_name TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        field_value TEXT
       )
     ''');
   }
 
-  // データの挿入
-  Future<int> insertTask(Map<String, dynamic> task) async {
-    final db = await database;
-    return await db.insert('tasks', task);
+  // 既存のDBを新しい構造にアップグレード
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('DROP TABLE IF EXISTS tasks'); // 旧テーブル削除
+      await _onCreate(db, newVersion);
+    }
   }
 
-  // データの取得
-  Future<List<Map<String, dynamic>>> getTasks() async {
+  // データの挿入または更新（UPSERT）
+  Future<int> upsertFormEntry(
+      String pageName, String fieldName, String value) async {
     final db = await database;
-    return await db.query('tasks');
-  }
 
-  // データの更新
-  Future<int> updateTask(Map<String, dynamic> task) async {
-    final db = await database;
-    return await db.update(
-      'tasks',
-      task,
-      where: 'id = ?',
-      whereArgs: [task['id']],
+    // 既存データをチェック
+    final List<Map<String, dynamic>> existing = await db.query(
+      'form_entries',
+      where: 'page_name = ? AND field_name = ?',
+      whereArgs: [pageName, fieldName],
     );
+
+    if (existing.isEmpty) {
+      // データがない場合は INSERT
+      return await db.insert('form_entries', {
+        'page_name': pageName,
+        'field_name': fieldName,
+        'field_value': value,
+      });
+    } else {
+      // データがある場合は UPDATE
+      return await db.update(
+        'form_entries',
+        {'field_value': value},
+        where: 'page_name = ? AND field_name = ?',
+        whereArgs: [pageName, fieldName],
+      );
+    }
   }
 
-  // データの削除
-  Future<int> deleteTask(int id) async {
+  // 特定のページのデータ取得
+  Future<List<Map<String, dynamic>>> getFormEntries(String pageName) async {
     final db = await database;
-    return await db.delete(
-      'tasks',
-      where: 'id = ?',
-      whereArgs: [id],
+    return await db.query(
+      'form_entries',
+      where: 'page_name = ?',
+      whereArgs: [pageName],
     );
   }
 }
