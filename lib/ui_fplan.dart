@@ -26,18 +26,21 @@ class _PropertyInputFormState extends State<PropertyInputForm>
     {
       "title": "物件情報",
       "fields": [
-        {"label": "借入金額(単位:円)", "type": "number", "default": "1000000"},
-        {"label": "借入年数(単位:年)", "type": "number", "default": "35"},
+        {"label": "借入金額(単位:円)", "type": "number", "default": "10,000,000"},
+        {
+          "label": "借入年数(単位:年)",
+          "type": "number",
+          "default": "35",
+          "min": 1,
+          "max": 50
+        },
         {
           "label": "返済方法",
           "type": "select",
           "options": ["元利均等", "元金均等"],
           "default": "元利均等"
         },
-        {"label": "物件名称", "type": "text", "default": "◯◯マンション"},
-        {"label": "号室", "type": "number", "default": "101"},
-        {"label": "間取り", "type": "text", "default": "2LDK"},
-        {"label": "契約(予定)額", "type": "number", "default": "1000000"}
+        {"label": "物件名称", "type": "text", "placeholder": "◯◯マンション"}
       ]
     },
     {
@@ -62,7 +65,7 @@ class _PropertyInputFormState extends State<PropertyInputForm>
           "options": ["固定", "変動"],
           "default": "変動"
         },
-        {"label": "元金(万円)", "type": "number", "default": "1000"},
+        {"label": "元金(単位:万円)", "type": "number", "default": "1,000"},
         {
           "label": "金利(%)",
           "type": "number",
@@ -143,6 +146,22 @@ class _PropertyInputFormState extends State<PropertyInputForm>
     cmnSnackBar(context, "保存が完了しました");
   }
 
+  /// SQLiteの保存データを削除する
+  Future<void> _deleteDataFromDB() async {
+    // 各タブごとに保存されたデータを削除
+    for (var tab in tabsConfig) {
+      String pageTitle = tab["title"];
+      await _db.deleteFormEntries(pageTitle);
+    }
+    // ローカルのフォームデータもクリア
+    _formData.clear();
+    for (var controller in _controllers.values) {
+      controller.clear();
+    }
+    setState(() {});
+    cmnSnackBar(context, "保存データを削除しました");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,10 +184,23 @@ class _PropertyInputFormState extends State<PropertyInputForm>
             .map((tab) => Tab(text: tab["title"].toString()))
             .toList(),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _saveDataToDB,
-        tooltip: "データ保存",
-        child: const Icon(Icons.save),
+      // 保存ボタンと削除ボタンを縦に配置
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            onPressed: _saveDataToDB,
+            tooltip: "データ保存",
+            child: const Icon(Icons.save),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: _deleteDataFromDB,
+            tooltip: "保存データ削除",
+            backgroundColor: Colors.red,
+            child: const Icon(Icons.delete),
+          ),
+        ],
       ),
     );
   }
@@ -188,23 +220,34 @@ class _PropertyInputFormState extends State<PropertyInputForm>
               padding: const EdgeInsets.only(bottom: 16.0),
               child: TextField(
                 controller: _controllers[key],
-                decoration:
-                    InputDecoration(labelText: field["label"].toString()),
+                decoration: InputDecoration(
+                  labelText: field["label"].toString(),
+                  hintText: field["placeholder"]?.toString(),
+                ),
                 onChanged: (value) {
                   _formData[key] = value;
                 },
               ),
             );
           case "number":
-            // 小数点以下桁数が指定されてるかチェック
             int? decimalPlaces = field["decimal_places"] != null
                 ? int.tryParse(field["decimal_places"].toString())
                 : null;
-            TextInputFormatter formatter;
+            // 組み合わせる inputFormatters をリストで生成
+            List<TextInputFormatter> inputFormatters = [];
+            // もし min, max が設定されてたら、RangeInputFormatter（double対応）を追加
+            if (field["min"] != null && field["max"] != null) {
+              inputFormatters.add(RangeInputFormatter(
+                min: double.parse(field["min"].toString()),
+                max: double.parse(field["max"].toString()),
+              ));
+            }
+            // 小数点指定があれば DecimalNumberFormatter、なければ整数用の ThousandsFormatter を追加
             if (decimalPlaces != null && decimalPlaces > 0) {
-              formatter = DecimalNumberFormatter(decimalPlaces: decimalPlaces);
+              inputFormatters
+                  .add(DecimalNumberFormatter(decimalPlaces: decimalPlaces));
             } else {
-              formatter = ThousandsFormatter();
+              inputFormatters.add(ThousandsFormatter());
             }
             return Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
@@ -216,7 +259,7 @@ class _PropertyInputFormState extends State<PropertyInputForm>
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: <TextInputFormatter>[formatter],
+                inputFormatters: inputFormatters,
                 onChanged: (value) {
                   _formData[key] = value;
                 },
@@ -227,9 +270,10 @@ class _PropertyInputFormState extends State<PropertyInputForm>
             return Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: DropdownButtonFormField<String>(
-                decoration:
-                    InputDecoration(labelText: field["label"].toString()),
-                value: _formData[key]!.isEmpty ? null : _formData[key],
+                decoration: InputDecoration(
+                  labelText: field["label"].toString(),
+                ),
+                value: ((_formData[key] ?? '').isEmpty) ? null : _formData[key],
                 items: options.map<DropdownMenuItem<String>>((option) {
                   return DropdownMenuItem<String>(
                     value: option.toString(),
@@ -259,7 +303,6 @@ class ThousandsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    // カンマを除去して数字だけにする
     String digitsOnly = newValue.text.replaceAll(RegExp(r','), '');
     if (digitsOnly.isEmpty) return newValue.copyWith(text: '');
     int? number = int.tryParse(digitsOnly);
@@ -272,18 +315,18 @@ class ThousandsFormatter extends TextInputFormatter {
   }
 }
 
-/// 小数対応の数値入力フォーマッター
-/// 整数部は3桁カンマ表示し、小数部は指定桁数まで許容する
+/// 小数対応の数値入力フォーマッター（グルーピング無効、en_USロケール）
 class DecimalNumberFormatter extends TextInputFormatter {
   final int decimalPlaces;
-  final NumberFormat formatter = NumberFormat.decimalPattern();
+  final NumberFormat formatter;
 
-  DecimalNumberFormatter({required this.decimalPlaces});
+  DecimalNumberFormatter({required this.decimalPlaces})
+      : formatter = NumberFormat.decimalPattern('en_US')..turnOffGrouping();
 
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    // カンマを除去
+    // 入力値からカンマを除去
     String newText = newValue.text.replaceAll(',', '');
     // 数字と小数点のみ許可
     if (!RegExp(r'^\d*\.?\d*$').hasMatch(newText)) {
@@ -292,7 +335,6 @@ class DecimalNumberFormatter extends TextInputFormatter {
     List<String> parts = newText.split('.');
     String integerPart = parts[0];
     String decimalPart = parts.length > 1 ? parts[1] : '';
-
     if (decimalPart.length > decimalPlaces) {
       decimalPart = decimalPart.substring(0, decimalPlaces);
     }
@@ -312,5 +354,28 @@ class DecimalNumberFormatter extends TextInputFormatter {
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
+  }
+}
+
+/// 指定した範囲内の数値のみ許可する TextInputFormatter（double対応）
+class RangeInputFormatter extends TextInputFormatter {
+  final double min;
+  final double max;
+
+  RangeInputFormatter({required this.min, required this.max});
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    // 途中入力を許容するため、空文字はそのまま返す
+    if (newValue.text.isEmpty) return newValue;
+    // カンマ除去後、doubleに変換
+    String newText = newValue.text.replaceAll(RegExp(r','), '');
+    double? value = double.tryParse(newText);
+    if (value == null) return oldValue;
+    if (value < min || value > max) {
+      return oldValue;
+    }
+    return newValue;
   }
 }

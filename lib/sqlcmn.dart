@@ -89,4 +89,14 @@ class SQLiteCommon {
       whereArgs: [pageName],
     );
   }
+
+  // ページ単位で保存データを削除するメソッド
+  Future<int> deleteFormEntries(String pageName) async {
+    final db = await database;
+    return await db.delete(
+      'form_entries',
+      where: 'page_name = ?',
+      whereArgs: [pageName],
+    );
+  }
 }
