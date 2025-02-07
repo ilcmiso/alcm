@@ -40,7 +40,16 @@ class _PropertyInputFormState extends State<PropertyInputForm>
           "options": ["元利均等", "元金均等"],
           "default": "元利均等"
         },
-        {"label": "物件名称", "type": "text", "placeholder": "◯◯マンション"}
+        {"label": "物件名称", "type": "text", "placeholder": "◯◯マンション"},
+        {
+          "label": "金利(%)",
+          "type": "number",
+          "decimal_places": 3,
+          "min": 0,
+          "max": 100,
+          "placeholder": "例: 2.345",
+          "default": "2.345"
+        }
       ]
     },
     {
@@ -65,16 +74,7 @@ class _PropertyInputFormState extends State<PropertyInputForm>
           "options": ["固定", "変動"],
           "default": "変動"
         },
-        {"label": "元金(単位:万円)", "type": "number", "default": "1,000"},
-        {
-          "label": "金利(%)",
-          "type": "number",
-          "decimal_places": 3,
-          "min": 0,
-          "max": 100,
-          "placeholder": "例: 2.345",
-          "default": "2.345"
-        }
+        {"label": "元金(単位:万円)", "type": "number", "default": "1,000"}
       ]
     },
     {
@@ -192,6 +192,12 @@ class _PropertyInputFormState extends State<PropertyInputForm>
             onPressed: _saveDataToDB,
             tooltip: "データ保存",
             child: const Icon(Icons.save),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: _saveDataToDB,
+            tooltip: "償還表",
+            child: const Icon(Icons.addchart),
           ),
           const SizedBox(height: 16),
           FloatingActionButton(
