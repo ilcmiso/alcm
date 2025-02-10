@@ -15,11 +15,37 @@ class ChartScreen extends StatelessWidget {
     required this.annualInterestRate,
   });
 
+  // 各列の設定情報（ラベル、幅、AmortizationRowのフィールド名、テキスト配置）
+  final List<Map<String, dynamic>> columnsConfig = const [
+    {"label": "月数", "width": 30.0, "field": "month", "alignment": "right"},
+    {"label": "返済額", "width": 50.0, "field": "payment", "alignment": "left"},
+    {"label": "金利額", "width": 50.0, "field": "interest", "alignment": "right"},
+    {
+      "label": "元金額",
+      "width": 50.0,
+      "field": "principalPayment",
+      "alignment": "right"
+    },
+    {
+      "label": "金利累計",
+      "width": 70.0,
+      "field": "cumulativeInterest",
+      "alignment": "right"
+    },
+    {
+      "label": "返済残高",
+      "width": 70.0,
+      "field": "remainingBalance",
+      "alignment": "right"
+    },
+  ];
+
   @override
   Widget build(BuildContext context) {
-    // 償還表のスケジュールを生成
+    // 償還表のスケジュール生成
     final List<AmortizationRow> schedule = _generateSchedule();
-    final formatter = NumberFormat("#,##0.00");
+    // 整数表示用のフォーマッター
+    final formatter = NumberFormat("#,##0");
 
     return Scaffold(
       appBar: AppBar(
@@ -29,24 +55,62 @@ class ChartScreen extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: SingleChildScrollView(
           child: DataTable(
-            columns: const [
-              DataColumn(label: Text("月数")),
-              DataColumn(label: Text("返済額")),
-              DataColumn(label: Text("金利額")),
-              DataColumn(label: Text("元金額")),
-              DataColumn(label: Text("金利累計")),
-              DataColumn(label: Text("返済残高")),
-            ],
+            dataRowHeight: 30.0, // 行の高さを狭める
+            headingRowHeight: 30.0, // ヘッダー行の高さを狭める
+            columns: columnsConfig.map((col) {
+              // alignmentパラメータからTextAlignを決定
+              TextAlign textAlign;
+              switch (col["alignment"]) {
+                case "left":
+                  textAlign = TextAlign.left;
+                  break;
+                case "center":
+                  textAlign = TextAlign.center;
+                  break;
+                default:
+                  textAlign = TextAlign.right;
+              }
+              return DataColumn(
+                label: Container(
+                  width: col["width"],
+                  child: Text(
+                    col["label"],
+                    textAlign: textAlign,
+                  ),
+                ),
+              );
+            }).toList(),
             rows: schedule.map((row) {
+              final rowData = row.toMap();
               return DataRow(
-                cells: [
-                  DataCell(Text(row.month.toString())),
-                  DataCell(Text(formatter.format(row.payment))),
-                  DataCell(Text(formatter.format(row.interest))),
-                  DataCell(Text(formatter.format(row.principalPayment))),
-                  DataCell(Text(formatter.format(row.cumulativeInterest))),
-                  DataCell(Text(formatter.format(row.remainingBalance))),
-                ],
+                cells: columnsConfig.map((col) {
+                  final field = col["field"];
+                  // 月数はそのまま、他は.floor()で整数に切り捨て
+                  final dynamic rawValue = rowData[field];
+                  final value =
+                      (field == "month") ? rawValue : rawValue.floor();
+                  // alignmentパラメータからTextAlignを決定
+                  TextAlign textAlign;
+                  switch (col["alignment"]) {
+                    case "left":
+                      textAlign = TextAlign.left;
+                      break;
+                    case "center":
+                      textAlign = TextAlign.center;
+                      break;
+                    default:
+                      textAlign = TextAlign.right;
+                  }
+                  return DataCell(
+                    Container(
+                      width: col["width"],
+                      child: Text(
+                        formatter.format(value),
+                        textAlign: textAlign,
+                      ),
+                    ),
+                  );
+                }).toList(),
               );
             }).toList(),
           ),
@@ -64,7 +128,6 @@ class ChartScreen extends StatelessWidget {
     double cumulativeInterest = 0.0;
 
     if (repaymentMethod == "元利均等") {
-      // 元利均等返済方式の計算
       double monthlyPayment = principal *
           monthlyRate *
           pow(1 + monthlyRate, totalMonths) /
@@ -76,7 +139,6 @@ class ChartScreen extends StatelessWidget {
         cumulativeInterest += interestAmount;
         remainingBalance -= principalAmount;
         if (month == totalMonths) {
-          // 最終月の調整
           principalAmount += remainingBalance;
           monthlyPayment = principalAmount + interestAmount;
           remainingBalance = 0;
@@ -91,7 +153,6 @@ class ChartScreen extends StatelessWidget {
         ));
       }
     } else if (repaymentMethod == "元金均等") {
-      // 元金均等返済方式の計算
       double monthlyPrincipal = principal / totalMonths;
       for (int month = 1; month <= totalMonths; month++) {
         double interestAmount = remainingBalance * monthlyRate;
@@ -112,7 +173,6 @@ class ChartScreen extends StatelessWidget {
         ));
       }
     }
-
     return schedule;
   }
 }
@@ -134,4 +194,16 @@ class AmortizationRow {
     required this.cumulativeInterest,
     required this.remainingBalance,
   });
+
+  /// 各フィールドをMap形式で返す
+  Map<String, dynamic> toMap() {
+    return {
+      "month": month,
+      "payment": payment,
+      "interest": interest,
+      "principalPayment": principalPayment,
+      "cumulativeInterest": cumulativeInterest,
+      "remainingBalance": remainingBalance,
+    };
+  }
 }
