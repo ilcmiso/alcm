@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:alcm/sqlcmn.dart';
 import 'package:alcm/common.dart';
+import 'ui_chart.dart'; // 償還表画面用のimport追加
 
 class PropertyInputForm extends StatefulWidget {
   const PropertyInputForm({Key? key}) : super(key: key);
@@ -162,6 +163,36 @@ class _PropertyInputFormState extends State<PropertyInputForm>
     cmnSnackBar(context, "保存データを削除しました");
   }
 
+  /// 償還表画面へ遷移する
+  void _navigateToChart() {
+    // 物件情報タブから必要な値を取得
+    String principalStr = _formData["物件情報_借入金額(単位:円)"] ?? "0";
+    String yearsStr = _formData["物件情報_借入年数(単位:年)"] ?? "0";
+    String repaymentMethod = _formData["物件情報_返済方法"] ?? "元利均等";
+    String interestStr = _formData["物件情報_金利(%)"] ?? "0";
+
+    // カンマを除去して数値変換
+    principalStr = principalStr.replaceAll(",", "");
+    yearsStr = yearsStr.replaceAll(",", "");
+    interestStr = interestStr.replaceAll(",", "");
+
+    double principal = double.tryParse(principalStr) ?? 0;
+    int years = int.tryParse(yearsStr) ?? 0;
+    double interestRate = double.tryParse(interestStr) ?? 0;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChartScreen(
+          principal: principal,
+          years: years,
+          repaymentMethod: repaymentMethod,
+          annualInterestRate: interestRate,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -184,23 +215,26 @@ class _PropertyInputFormState extends State<PropertyInputForm>
             .map((tab) => Tab(text: tab["title"].toString()))
             .toList(),
       ),
-      // 保存ボタンと削除ボタンを縦に配置
+      // 保存ボタン、償還表ボタン、削除ボタンを縦に配置
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           FloatingActionButton(
+            heroTag: "saveButton",
             onPressed: _saveDataToDB,
             tooltip: "データ保存",
             child: const Icon(Icons.save),
           ),
           const SizedBox(height: 16),
           FloatingActionButton(
-            onPressed: _saveDataToDB,
+            heroTag: "chartButton",
+            onPressed: _navigateToChart,
             tooltip: "償還表",
             child: const Icon(Icons.addchart),
           ),
           const SizedBox(height: 16),
           FloatingActionButton(
+            heroTag: "deleteButton",
             onPressed: _deleteDataFromDB,
             tooltip: "保存データ削除",
             backgroundColor: Colors.red,
