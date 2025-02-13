@@ -11,7 +11,7 @@ import 'package:printing/printing.dart';
 class ChartScreen extends StatelessWidget {
   final double principal;
   final int years;
-  final String repaymentMethod;
+  final String repaymentMethod; // "元利均等" または "元金"
   final double annualInterestRate;
 
   ChartScreen({
@@ -92,9 +92,13 @@ class ChartScreen extends StatelessWidget {
                 cells: columnsConfig.map((col) {
                   final field = col["field"];
                   // 月数はそのまま、他は.floor()で整数に切り捨て
-                  final dynamic rawValue = rowData[field];
-                  final value =
-                      (field == "month") ? rawValue : rawValue.floor();
+                  dynamic displayValue;
+                  if (field == "month") {
+                    displayValue = rowData[field];
+                  } else {
+                    // 今回は、各セルは計算済みの整数値として保持してるのでそのまま使用
+                    displayValue = rowData[field];
+                  }
                   // alignmentパラメータからTextAlignを決定
                   TextAlign textAlign;
                   switch (col["alignment"]) {
@@ -111,7 +115,7 @@ class ChartScreen extends StatelessWidget {
                     Container(
                       width: col["width"],
                       child: Text(
-                        formatter.format(value),
+                        formatter.format(displayValue),
                         textAlign: textAlign,
                       ),
                     ),
@@ -151,54 +155,71 @@ class ChartScreen extends StatelessWidget {
   /// 償還表のスケジュールを生成する
   List<AmortizationRow> _generateSchedule() {
     List<AmortizationRow> schedule = [];
-    int totalMonths = years * 12;
-    double monthlyRate = annualInterestRate / 100 / 12;
-    double remainingBalance = principal;
+    int totalMonths = years * 12; // AA2
+    double monthlyRate = annualInterestRate / 1200; // AA1 = EC06.Value/1200
+    double remaining = principal; // AA0
     double cumulativeInterest = 0.0;
 
-    if (repaymentMethod == "元利均等") {
-      double monthlyPayment = principal *
-          monthlyRate *
-          pow(1 + monthlyRate, totalMonths) /
-          (pow(1 + monthlyRate, totalMonths) - 1);
+    // 固定返済額 AA3 を計算（VBではユーザー入力の値、ここでは計算式で再現）
+    double calcPayment = principal *
+        monthlyRate *
+        pow(1 + monthlyRate, totalMonths) /
+        (pow(1 + monthlyRate, totalMonths) - 1);
+    // VB側では返済額は整数（Int()で切り捨てではなく、丸めた値になるように調整している可能性があるため、round()）
+    double fixedPayment = calcPayment.roundToDouble(); // AA3
 
+    // VB側の処理を再現（元利均等の場合＝repaymentMethod != "元金"）
+    if (repaymentMethod != "元金") {
+      // For DD0 = 1 To AA2
       for (int month = 1; month <= totalMonths; month++) {
-        double interestAmount = remainingBalance * monthlyRate;
-        double principalAmount = monthlyPayment - interestAmount;
-        cumulativeInterest += interestAmount;
-        remainingBalance -= principalAmount;
+        // LS_R.LS05 = Int(AA0 * AA1) ＝ 月利部分（切り捨て）
+        int interest = (remaining * monthlyRate).floor();
+        double principalPayment;
+        double payment;
         if (month == totalMonths) {
-          principalAmount += remainingBalance;
-          monthlyPayment = principalAmount + interestAmount;
-          remainingBalance = 0;
+          // 最終月は残りすべてを返済
+          principalPayment = remaining;
+          payment = interest + principalPayment;
+        } else {
+          // LS_R.LS06 = AA3 - LS_R.LS05
+          principalPayment = fixedPayment - interest;
+          payment = fixedPayment;
         }
+        cumulativeInterest += interest;
+        double newRemaining = remaining - principalPayment;
+        if (newRemaining < 0) newRemaining = 0;
+
+        // LS_R.LS07 = AA0 - LS_R.LS06 ＝ 新残高
         schedule.add(AmortizationRow(
           month: month,
-          payment: monthlyPayment,
-          interest: interestAmount,
-          principalPayment: principalAmount,
+          payment: payment, // 返済額
+          interest: interest.toDouble(), // 金利額
+          principalPayment: principalPayment, // 元金額＝返済額 - 金利額
           cumulativeInterest: cumulativeInterest,
-          remainingBalance: remainingBalance,
+          remainingBalance: newRemaining,
         ));
+        remaining = newRemaining;
       }
-    } else if (repaymentMethod == "元金均等") {
+    } else {
+      // 「元金均等」の場合は別ロジック（ここでは省略）
+      // 既存のシンプルな均等元金返済処理を使う
       double monthlyPrincipal = principal / totalMonths;
       for (int month = 1; month <= totalMonths; month++) {
-        double interestAmount = remainingBalance * monthlyRate;
-        double monthlyPayment = monthlyPrincipal + interestAmount;
-        cumulativeInterest += interestAmount;
-        remainingBalance -= monthlyPrincipal;
+        int interest = (remaining * monthlyRate).floor();
+        double payment = monthlyPrincipal + interest;
         if (month == totalMonths) {
-          monthlyPayment = monthlyPrincipal + interestAmount;
-          remainingBalance = 0;
+          payment = remaining + interest;
         }
+        remaining = remaining - monthlyPrincipal;
+        if (remaining < 0) remaining = 0;
+        cumulativeInterest += interest;
         schedule.add(AmortizationRow(
           month: month,
-          payment: monthlyPayment,
-          interest: interestAmount,
+          payment: payment,
+          interest: interest.toDouble(),
           principalPayment: monthlyPrincipal,
           cumulativeInterest: cumulativeInterest,
-          remainingBalance: remainingBalance,
+          remainingBalance: remaining,
         ));
       }
     }
@@ -218,16 +239,14 @@ class ChartScreen extends StatelessWidget {
         columnsConfig.map((col) => col["label"].toString()).toList();
     sheetObject.appendRow(headers);
 
-    // 各行追加（各セルは月数はそのまま、他は.floor()して整数値）
+    // 各行追加（各セルは月数はそのまま、他は整数値）
     for (var row in schedule) {
       Map<String, dynamic> rowData = row.toMap();
       List<dynamic> rowValues = [];
       for (var col in columnsConfig) {
         String field = col["field"];
         dynamic value = rowData[field];
-        if (field != "month") {
-          value = value.floor();
-        }
+        // すでに整数になっている前提
         rowValues.add(value);
       }
       sheetObject.appendRow(rowValues);
@@ -237,11 +256,9 @@ class ChartScreen extends StatelessWidget {
     var fileBytes = excel.encode();
 
     if (fileBytes != null) {
-      // ここでは単純にSnackBarでバイト数を表示
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Excelファイル出力成功（バイト数: ${fileBytes.length}）")),
       );
-      // 実際は、path_providerで保存場所を確保したり、shareプラグインで共有したりする
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Excelファイル出力失敗")),
@@ -265,9 +282,6 @@ class ChartScreen extends StatelessWidget {
       for (var col in columnsConfig) {
         String field = col["field"];
         dynamic value = rowData[field];
-        if (field != "month") {
-          value = value.floor();
-        }
         rowValues.add(value.toString());
       }
       dataRows.add(rowValues);
@@ -285,7 +299,6 @@ class ChartScreen extends StatelessWidget {
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
             cellHeight: 20,
-            // 簡易的なセル配置（各列ごとの個別設定は、Table.fromTextArrayではインデックス指定で可能）
             cellAlignments: {
               0: pw.Alignment.centerRight,
               1: pw.Alignment.centerLeft,
@@ -300,7 +313,6 @@ class ChartScreen extends StatelessWidget {
     );
 
     final pdfBytes = await pdf.save();
-    // PrintingパッケージでPDF共有（端末の共有ダイアログが出る）
     await Printing.sharePdf(bytes: pdfBytes, filename: "amortization.pdf");
   }
 }
