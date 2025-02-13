@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:intl/intl.dart';
 
+// 追加パッケージ
+import 'package:excel/excel.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
 class ChartScreen extends StatelessWidget {
   final double principal;
   final int years;
@@ -116,6 +122,29 @@ class ChartScreen extends StatelessWidget {
           ),
         ),
       ),
+      // FAB2個：Excel出力とPDF出力
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: "excelExport",
+            onPressed: () async {
+              await _exportToExcel(context);
+            },
+            tooltip: "Excel出力",
+            child: const Icon(Icons.table_chart),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: "pdfExport",
+            onPressed: () async {
+              await _exportToPDF(context);
+            },
+            tooltip: "PDF出力",
+            child: const Icon(Icons.picture_as_pdf),
+          ),
+        ],
+      ),
     );
   }
 
@@ -174,6 +203,105 @@ class ChartScreen extends StatelessWidget {
       }
     }
     return schedule;
+  }
+
+  /// Excel出力処理（excelパッケージを利用）
+  Future<void> _exportToExcel(BuildContext context) async {
+    List<AmortizationRow> schedule = _generateSchedule();
+
+    // Excelファイル作成
+    var excel = Excel.createExcel();
+    Sheet sheetObject = excel['Sheet1'];
+
+    // ヘッダー行追加
+    List<String> headers =
+        columnsConfig.map((col) => col["label"].toString()).toList();
+    sheetObject.appendRow(headers);
+
+    // 各行追加（各セルは月数はそのまま、他は.floor()して整数値）
+    for (var row in schedule) {
+      Map<String, dynamic> rowData = row.toMap();
+      List<dynamic> rowValues = [];
+      for (var col in columnsConfig) {
+        String field = col["field"];
+        dynamic value = rowData[field];
+        if (field != "month") {
+          value = value.floor();
+        }
+        rowValues.add(value);
+      }
+      sheetObject.appendRow(rowValues);
+    }
+
+    // Excelファイルのバイト列取得
+    var fileBytes = excel.encode();
+
+    if (fileBytes != null) {
+      // ここでは単純にSnackBarでバイト数を表示
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Excelファイル出力成功（バイト数: ${fileBytes.length}）")),
+      );
+      // 実際は、path_providerで保存場所を確保したり、shareプラグインで共有したりする
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Excelファイル出力失敗")),
+      );
+    }
+  }
+
+  /// PDF出力処理（pdf, printingパッケージを利用）
+  Future<void> _exportToPDF(BuildContext context) async {
+    List<AmortizationRow> schedule = _generateSchedule();
+
+    final pdf = pw.Document();
+
+    // ヘッダーとデータ行作成
+    List<String> headers =
+        columnsConfig.map((col) => col["label"].toString()).toList();
+    List<List<String>> dataRows = [];
+    for (var row in schedule) {
+      Map<String, dynamic> rowData = row.toMap();
+      List<String> rowValues = [];
+      for (var col in columnsConfig) {
+        String field = col["field"];
+        dynamic value = rowData[field];
+        if (field != "month") {
+          value = value.floor();
+        }
+        rowValues.add(value.toString());
+      }
+      dataRows.add(rowValues);
+    }
+
+    // PDF用テーブル作成
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Table.fromTextArray(
+            data: <List<String>>[
+              headers,
+              ...dataRows,
+            ],
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            cellHeight: 20,
+            // 簡易的なセル配置（各列ごとの個別設定は、Table.fromTextArrayではインデックス指定で可能）
+            cellAlignments: {
+              0: pw.Alignment.centerRight,
+              1: pw.Alignment.centerLeft,
+              2: pw.Alignment.centerRight,
+              3: pw.Alignment.centerRight,
+              4: pw.Alignment.centerRight,
+              5: pw.Alignment.centerRight,
+            },
+          );
+        },
+      ),
+    );
+
+    final pdfBytes = await pdf.save();
+    // PrintingパッケージでPDF共有（端末の共有ダイアログが出る）
+    await Printing.sharePdf(bytes: pdfBytes, filename: "amortization.pdf");
   }
 }
 
